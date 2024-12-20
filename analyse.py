@@ -5,6 +5,7 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import os
+from scipy.stats import chisquare
 
 
 def exponential_fit(x,a,b):
@@ -19,7 +20,7 @@ def analysis(folder_name):
             filelist.append(filename)
     #The delay is in power of 2 (2,4,8,16).
     #To modify the delay, comment the next line and uncomment the 24th line below.
-    timelist = [2^(n+1) for n in np.size(filelist)]
+    timelist = [2**(x+2) for x in range(np.size(filelist))]
     for i in range(np.size(filelist)):
         #timelist.append(input("delay for "+str(i+1)+"th file : "))
         file = open(folder_name+"/"+filelist[i],'r')
@@ -35,29 +36,37 @@ def analysis(folder_name):
                 freq_dict[freq].append(amp)
     T2_list = []
     freq_list = []
+    fig,ax1 = plt.subplots()
+    k = 0
     for i in freq_dict:
         params, covariance = curve_fit(exponential_fit,timelist,[float(x) for x in freq_dict[i]])
-        fitted_a,T2 = params
-        T2_list.append(float(T2))
-        freq_list.append(float(i))
-    fig,ax = plt.subplots()
-    plt.plot(freq_list,T2_list)
-    ax.set_xlabel("frequency")
-    ax.set_ylabel("T2")
+        
+        
+        chi, p = chisquare([float(x) for x in freq_dict[i]])
+        if(p<0.01):
+            fitted_a,T2 = params
+            T2_list.append(float(T2))
+            freq_list.append(float(i))
+            
+    ax1.plot(freq_list, T2_list)
+    ax1.set_xlabel("Frequency (MHz)")
+    ax1.set_ylabel("T2 (µs)")
+    fig.savefig("T2freqcobalt")
     plt.show() 
     return 0
 
-def T2_analysis_deprecated():
-    #file_list = ['24121942.dat','24121944.dat','24121945.dat','24121946.dat','24121947.dat']
-    file_list = ['24121954.dat','24121952.dat','24121950.dat','24121948.dat','24121955.dat','24121956.dat']
-    #time_list = [4,8,16,32,64]
-    time_list = [0.2,0.3,0.6,1,1.3,1.6]
+def T2_analysis_deprecated(folder_name):
+    file_list = []
+    for filename in os.listdir(folder_name):
+        if re.findall(r'\d+.dat',filename):
+            file_list.append(filename)
+    time_list = [2**(x+2) for x in range(np.size(file_list))]
     integ = []
     nb_files = np.size(file_list)
     fig, (ax1,ax2,ax3) = plt.subplots(1,3,figsize=(15,5))
 
     for j in range(nb_files):
-        file = open("cofeet4copie/"+file_list[j], 'r')
+        file = open(folder_name+"/"+file_list[j], 'r')
         list_lines = file.readlines()
         size = np.size(list_lines)
         x = np.zeros(size)
@@ -65,9 +74,10 @@ def T2_analysis_deprecated():
         amp = np.zeros(size)
         for i in range(size):
             result = re.findall(r'-?\d+.\d+',list_lines[i])
-            x[i] = result[0]
-            y[i] = result[1]
-            amp[i] = result[2]
+            if result!=[]:
+                x[i] = result[0]
+                y[i] = result[1]
+                amp[i] = result[2]
         y*=np.cos(amp)
         y_normalized = (y - np.min(y))/(np.max(y)-np.min(y))
         ax1.plot(x,y,label="T="+str(time_list[j]) + "ms")
@@ -100,7 +110,7 @@ def T2_analysis_deprecated():
     ax3.set_ylim(ymin = 0)
     ax3.set_xlabel('delay')
     ax3.set_ylabel('integrated frequencies')
-    plt.savefig("graph T0 ambient")
+    plt.savefig("graph cofe ambient")
     plt.show()
     return 0
 
@@ -115,7 +125,7 @@ def plot3D(folder_name):
     main_lines = main_file.readlines()
     files_list = []
     field_list = []
-    fig = plt.figure()
+    fig = plt.figure(figsize=(12,8))
     ax = fig.add_subplot(111,projection='3d')
     for i in range(np.size(main_lines)):
         if not i<6:
@@ -145,10 +155,18 @@ def plot3D(folder_name):
                 amp_list[i][k] = float(temp4[1])
                 k+=1
     x,y = np.meshgrid(freq_list,[np.log(x) for x in sorted_fields])
-    ax.plot_surface(x,y,amp_list,cmap="viridis")
+    ax.plot_surface(x,y,amp_list,cmap="gist_ncar",rstride=1,cstride=1)
+    ax.set_xlabel("frequency")
+    ax.set_ylabel("log of field")
+    ax.set_zlabel("amplitude")
+    ax.set_box_aspect([2,2,1.5])
+    plt.savefig("Plot3D")
+    
     plt.show()
         
     
     return 0
 
-plot3D("patapouf")
+#plot3D("patapouf")
+#analysis('cofeet4copie')
+T2_analysis_deprecated('DATA')
